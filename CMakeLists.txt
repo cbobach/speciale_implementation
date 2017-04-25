@@ -12,14 +12,11 @@ set(DUPLO_SRCS duplo/duplo-evaluator.cpp duplo/duplo-constructor.cpp duplo/duplo
 add_library(DUPLO ${DUPLO_SRCS})
 target_link_libraries(DUPLO STORAGE GARBLING CIRCUIT SPLIT_COMMIT)
 
-#add_executable(DuploConstructor duplo-mains/duplo-const-main.cpp)
-#target_link_libraries(DuploConstructor DUPLO)
-#
-#add_executable(DuploEvaluator duplo-mains/duplo-eval-main.cpp)
-#target_link_libraries(DuploEvaluator DUPLO)
+add_executable(DuploConstructor duplo-mains/duplo-const-main.cpp)
+target_link_libraries(DuploConstructor DUPLO)
 
-add_executable(PokerPaser duplo-mains/poker-paser.cpp)
-target_link_libraries(PokerPaser DUPLO gtest_main gtest)
+add_executable(DuploEvaluator duplo-mains/duplo-eval-main.cpp)
+target_link_libraries(DuploEvaluator DUPLO)
 
 add_executable(PokerConstructor duplo-mains/poker-const-main.cpp)
 target_link_libraries(PokerConstructor DUPLO)
@@ -30,6 +27,8 @@ target_link_libraries(PokerEvaluator DUPLO)
 add_executable(PokerClient duplo-mains/poker-client-main.cpp)
 target_link_libraries(PokerClient DUPLO)
 
+add_executable(PokerPaser duplo-mains/poker-paser.cpp)
+target_link_libraries(PokerPaser DUPLO gtest_main gtest)
 
 #Only build TableProducer if GMP is found
 if(${GMP_FOUND})

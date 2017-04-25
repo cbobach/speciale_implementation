@@ -3,6 +3,7 @@
 //
 
 #include "poker-mains.h"
+#include <random>
 
 /*
  * 1: Generate randomness
@@ -113,14 +114,21 @@ int main(int argc, const char* argv[]) {
  * Generate Seed to be used in evaluation of circuit
  * */
   osuCrypto::PRNG rnd;
-  uint8_t seed[SIZE_SEED/CARD_SIZE];
-  rnd.SetSeed(load_block(seed));
-  rnd.get<uint8_t>(seed, SIZE_SEED/CARD_SIZE);
+  std::random_device engine;
+  uint8_t s[16];
+  for (int k = 0; k < 16; ++k) {
+//    s[k] = (uint8_t) engine();
+    s[k] = 0;
+  }
+  rnd.SetSeed(load_block(s));
+
+  int byte_size_seed = ceil(((double) SIZE_SEED)/8);
+  uint8_t seed[byte_size_seed];
+  rnd.get<uint8_t>(seed, (osuCrypto::u64) byte_size_seed);
 
   std::cout << "====== PARTY " << party_num << " CHOSE SEED: ======" << std::endl;
 
-  PrintBinSep(seed, SIZE_SEED/CARD_SIZE, CARD_SIZE);
-
+  PrintBinSep(seed, (int) byte_size_seed, (int) CARD_SIZE);
 
 //  Connecting to constructor
   uint8_t snd;
@@ -168,24 +176,24 @@ int main(int argc, const char* argv[]) {
   chan_eval.recv(ss_eval_first_hand, HAND_SIZE);
 
   std::cout << "====== YOU GOT SECRET SHARE FROM CONSTRUCTOR ======" << std::endl;
-  PrintBinSep(ss_const_first_hand, (int) HAND_SIZE, CARD_SIZE);
-  PrintHand(ss_const_first_hand);
+  PrintBinSep(ss_const_first_hand, HAND_SIZE, 8);
+//  PrintHand(ss_const_first_hand);
 
   std::cout << "====== YOU GOT SECRET SHARE FROM EVALUATOR ======" << std::endl;
-  PrintBinSep(ss_eval_first_hand, (int) HAND_SIZE, CARD_SIZE);
-  PrintHand(ss_eval_first_hand);
+  PrintBinSep(ss_eval_first_hand, HAND_SIZE, 8);
+//  PrintHand(ss_eval_first_hand);
 
   std::cout << "====== YOU HAVE BEEN DEALT THESE CARDS ======" << std::endl;
 
   uint8_t hand[HAND_SIZE];
   for (int j = 0; j < sizeof(hand); ++j) {
-    hand[j] = ss_const_first_hand[j] xor ss_eval_first_hand[j];
+    hand[j] = ss_const_first_hand[j] ^ ss_eval_first_hand[j];
   }
 
   /*
    * TODO: Translate cards to values and colour
    * */
 
-  PrintBinSep(hand, (int) HAND_SIZE, 6);
+  PrintBinSep(hand, (int) HAND_SIZE, 8);
   PrintHand(hand);
 }
