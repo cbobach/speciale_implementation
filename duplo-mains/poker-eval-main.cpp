@@ -6,7 +6,7 @@ int main(int argc, const char* argv[]) {
 
   opt.overview = "PokerEvaluator Passing Parameters Guide.";
   opt.syntax = "PokerEvaluator first second third forth fifth sixth";
-  opt.example = "PokerEvaluator -n 4 -c aes -e 8,2,1 -ip_const 10.11.100.216 -p_const 28001 -ip_eval localhost -p_eval 28002\n\n";
+  opt.example = "PokerEvaluator -c path/to/file.wir.GC_duplo -e 8,2,1 -ip_const 10.11.100.216 -p_const 28001\n\n";
   opt.footer = "ezOptionParser 0.1.4  Copyright (C) 2011 Remik Ziemlinski\nThis program is free and without warranty.\n";
 
   opt.add(
@@ -31,15 +31,6 @@ int main(int argc, const char* argv[]) {
   );
 
   opt.add(
-    default_num_iters.c_str(), // Default.
-    0, // Required?
-    1, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "Number of circuits to produce and evaluate.", // Help description.
-    "-n"
-  );
-
-  opt.add(
     default_execs.c_str(), // Default.
     0, // Required?
     3, // Number of args expected.
@@ -53,7 +44,7 @@ int main(int argc, const char* argv[]) {
     0, // Required?
     1, // Number of args expected.
     0, // Delimiter if expecting multiple args.
-    "IP Address of Machine running TinyConst for constructor", // Help description.
+    "IP Address of constructor", // Help description.
     "-ip_const"
   );
 
@@ -62,17 +53,8 @@ int main(int argc, const char* argv[]) {
     0, // Required?
     1, // Number of args expected.
     0, // Delimiter if expecting multiple args.
-    "Port to listen on/connect to for constructor", // Help description.
+    "Port to connect to on Constructor", // Help description.
     "-p_const"
-  );
-
-  opt.add(
-    default_ram_only.c_str(), // Default.
-    0, // Required?
-    1, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "Use disk", // Help description.
-    "-d"
   );
 
   //Attempt to parse input
@@ -92,15 +74,13 @@ int main(int argc, const char* argv[]) {
   }
 
   //Copy inputs into the right variables
-  int num_iters, num_execs_components, num_execs_auths, num_execs_online,
-          port_const, port_eval_p1, port_eval_p2, ram_only;
   std::vector<int> num_execs;
-  std::string circuit_name = "card_shuffle", ip_address_const, ip_address_eval,
+  int num_iters = 1, num_execs_components, num_execs_auths, num_execs_online,
+          port_const, ram_only = 0;
+  std::string circuit_name = "card_shuffle", ip_address_const,
           exec_name, circuit_file;
   std::string prefix("eval_");
   opt.get("-c")->getString(circuit_file);
-  opt.get("-n")->getInt(num_iters);
-  opt.get("-d")->getInt(ram_only);
   circuit_name = prefix + circuit_name;
 
   opt.get("-e")->getInts(num_execs);
@@ -120,7 +100,7 @@ int main(int argc, const char* argv[]) {
   int max_num_parallel_execs = max_element(num_execs.begin(), num_execs.end())[0];
   DuploEvaluator duplo_eval(duplo_constant_seeds[1], (uint32_t) max_num_parallel_execs, (bool) ram_only);
 
-  std::cout << "====== EVALUATOR: CONNECTIONG TO CONSTRUCTOR ======" << std::endl;
+  std::cout << "====== EVALUATOR: CONNECTING TO CONSTRUCTOR ======" << std::endl;
   duplo_eval.Connect(ip_address_const, (uint16_t) port_const);
 
   //Values used for network syncing after each phase
@@ -156,7 +136,7 @@ int main(int argc, const char* argv[]) {
   duplo_eval.chan.recv(&rcv, 1);
 
   /*
-   * TODO: wait for parties to connect and input.
+   * CHOOSING SEED
    * */
   osuCrypto::BitVector seed = GetSeed(SIZE_SEED);
   std::cout << "====== EVALUATOR: CHOSE SEED:  ======" << std::endl;
@@ -172,6 +152,9 @@ int main(int argc, const char* argv[]) {
 
   std::cout << "====== EVALUATOR: HAVE BEEN DEALT CARDS: ======" << std::endl;
 
+  /*
+   * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
+   * */
   std::vector<osuCrypto::BitVector> outputs(composed_circuit.output_circuits.size());
   std::vector<std::vector<uint32_t>> const_output_indices(composed_circuit.output_circuits.size());
   const_output_indices[0] = GetFirstHandIndices(const_first_card_index, HAND_SIZE);
@@ -187,7 +170,7 @@ int main(int argc, const char* argv[]) {
   duplo_eval.chan.recv(&rcv, 1);
 
   /*
-   * DISPLAYINT FIRST HAND
+   * DISPLAYING FIRST HAND
    * */
   osuCrypto::BitVector hand;
   hand.copy(outputs[0], 0, outputs[0].size());
@@ -198,13 +181,12 @@ int main(int argc, const char* argv[]) {
    * TAKING INPUTS FRO CARDS TO CHANGE
    * */
   std::vector<uint8_t> eval_card_changed = GetCardsToChange();
-
   std::cout << "====== EVALUATOR: WAITING FOR CONSTRUCTOR TO CHANGE CARDS ======" << std::endl
             << std::endl;
 
   /*
    * SENDING NUMBER OF CARDS CHANGED BY EVALUATOR.
-   * GETTING NUMBER OF CARDS CHANGED BY CONSTRUCTOR.
+   * RECEIVING NUMBER OF CARDS CHANGED BY CONSTRUCTOR.
    * */
   uint8_t num_cards_const_changed[1];
   uint8_t num_cards_eval_changed[1];
@@ -214,29 +196,16 @@ int main(int argc, const char* argv[]) {
 
   /*
    * SENDING WHICH CARDS HAVE BEEN CHANGED BY EVALUATOR.
-   * GETTING WHICH CARDS HAVE BEEN CHANGED BY CONSTRUCTOR.
+   * RECEIVING WHICH CARDS HAVE BEEN CHANGED BY CONSTRUCTOR.
    * */
   uint8_t const_card_changed[HAND_SIZE];
   if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] > 0) {
-
-    std::cout << "In case 1" << std::endl;
-
     duplo_eval.chan.send(eval_card_changed.data(), num_cards_eval_changed[0]);
     duplo_eval.chan.recv(&const_card_changed, num_cards_const_changed[0]);
   } else if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] == 0) {
-
-    std::cout << "In case 2" << std::endl;
-
     duplo_eval.chan.send(eval_card_changed.data(), num_cards_eval_changed[0]);
   } else if (num_cards_eval_changed[0] == 0 && num_cards_const_changed[0] > 0) {
-
-    std::cout << "In case 3" << std::endl;
-
     duplo_eval.chan.recv(&const_card_changed, num_cards_const_changed[0]);
-  } else {
-
-    std::cout << "In case 4" << std::endl;
-
   }
 
   std::cout << "CONSTRUCTOR CHANGED: \t" << (int) num_cards_const_changed[0] << " CARDS, ";
@@ -255,6 +224,9 @@ int main(int argc, const char* argv[]) {
 
   std::cout << "====== EVALUATOR: FINAL HAND HAVE BEEN DEALT: ======" << std::endl;
 
+  /*
+   * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
+   * */
   const_output_indices[0] = GetFinalHandIndices(num_cards_const_changed[0],
                                                 const_output_indices[0], const_card_changed,
                                                 const_first_change_card_index);

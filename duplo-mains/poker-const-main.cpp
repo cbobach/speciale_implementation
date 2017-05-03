@@ -6,7 +6,7 @@ int main(int argc, const char* argv[]) {
 
   opt.overview = "PokerConstructor Passing Parameters Guide.";
   opt.syntax = "PokerConstructor first second third forth fifth sixth";
-  opt.example = "PokerConstructor -n 4 -e 8,2,1 -ip_const 10.11.100.216 -p_const 28001 -parties 2 \n\n";
+  opt.example = "PokerConstructor -c path/to/file.wir.GC_duplo -e 8,2,1 -ip_const 10.11.100.216 -p_const 28001\n\n";
   opt.footer = "ezOptionParser 0.1.4  Copyright (C) 2011 Remik Ziemlinski\nThis program is free and without warranty.\n";
 
   opt.add(
@@ -31,15 +31,6 @@ int main(int argc, const char* argv[]) {
   );
 
   opt.add(
-    default_num_iters.c_str(), // Default.
-    0, // Required?
-    1, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "Number of circuits to produce and evaluate.", // Help description.
-    "-n"
-  );
-
-  opt.add(
     default_execs.c_str(), // Default.
     0, // Required?
     3, // Number of args expected.
@@ -53,7 +44,7 @@ int main(int argc, const char* argv[]) {
     0, // Required?
     1, // Number of args expected.
     0, // Delimiter if expecting multiple args.
-    "IP Address of Machine running TinyConst", // Help description.
+    "IP Address of Constructor", // Help description.
     "-ip_const"
   );
 
@@ -62,17 +53,8 @@ int main(int argc, const char* argv[]) {
     0, // Required?
     1, // Number of args expected.
     0, // Delimiter if expecting multiple args.
-    "Port to listen on/connect to for constructor", // Help description.
+    "Port to listen on for Constructor", // Help description.
     "-p_const"
-  );
-
-  opt.add(
-    default_ram_only.c_str(), // Default.
-    0, // Required?
-    1, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "Use ram", // Help description.
-    "-d"
   );
 
   //Attempt to parse input
@@ -92,15 +74,14 @@ int main(int argc, const char* argv[]) {
   }
 
   //Copy inputs into the right variables
-  int num_iters, num_execs_components, num_execs_auths, num_execs_online,
-          port_const, port_const_p1, port_const_p2, num_parties, ram_only;
   std::vector<int> num_execs;
-  std::string circuit_name = "card_shuffle", ip_address_const, exec_name, circuit_file;
+  int num_iters = 1, num_execs_components, num_execs_auths, num_execs_online,
+          port_const, ram_only = 0;
+  std::string circuit_name = "card_shuffle", ip_address_const, exec_name,
+          circuit_file;
 
   std::string prefix("const_");
   opt.get("-c")->getString(circuit_file);
-  opt.get("-n")->getInt(num_iters);
-  opt.get("-d")->getInt(ram_only);
   circuit_name = prefix + circuit_name;
 
   opt.get("-e")->getInts(num_execs);
@@ -158,7 +139,7 @@ int main(int argc, const char* argv[]) {
   duplo_const.chan.send(&snd, 1);
 
   /*
-   * TODO: wait for parties to connect and input.
+   * CHOOSING SEED
    * */
   osuCrypto::BitVector seed = GetSeed(SIZE_SEED);
   std::cout << "====== CONSTRUCTOR: CHOSE SEED: ======" << std::endl;
@@ -173,6 +154,9 @@ int main(int argc, const char* argv[]) {
 
   std::cout << "====== CONSTRUCTOR: HAVE BEEN DEALT CARDS: ======" << std::endl;
 
+  /*
+   * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
+   * */
   std::vector<osuCrypto::BitVector> outputs(composed_circuit.output_circuits.size());
   std::vector<std::vector<uint32_t>> const_output_indices(composed_circuit.output_circuits.size());
   const_output_indices[0] = GetFirstHandIndices(const_first_card_index, HAND_SIZE);
@@ -196,14 +180,14 @@ int main(int argc, const char* argv[]) {
   PrintHand(hand.data());
 
   /*
-   * TAKING INPUTS FOR CARDS TO CHANGE
+   * RECEIVING INPUTS FOR CARDS TO CHANGE
    * */
   std::vector<uint8_t> const_card_changed = GetCardsToChange();
   std::cout << "====== CONSTRUCTOR: WAITING FOR EVALUATOR TO CHANGE CARDS ======" << std::endl
             << std::endl;
 
   /*
-   * GETTING NUMBERS OF CARDS CHANGED BY EVALUATOR.
+   * RECEIVING NUMBERS OF CARDS CHANGED BY EVALUATOR.
    * SENDING NUMBER OF CARDS CHANGED BY CONSTRUCTOR
    * */
   uint8_t num_cards_const_changed[1];
@@ -213,30 +197,17 @@ int main(int argc, const char* argv[]) {
   duplo_const.chan.send(num_cards_const_changed,1);
 
   /*
-   * GETTING WHICH CARDS HAVE BEEN CHANGED BY EVALUATOR.
+   * RECEIVING WHICH CARDS HAVE BEEN CHANGED BY EVALUATOR.
    * SENDING WHICH CARDS HAVE BEEN CHANGED BY CONSTRUCTOR
    * */
   uint8_t eval_card_changed[HAND_SIZE];
   if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] > 0) {
-
-    std::cout << "In case 1" << std::endl;
-
     duplo_const.chan.recv(&eval_card_changed, num_cards_eval_changed[0]);
     duplo_const.chan.send(const_card_changed.data(), num_cards_const_changed[0]);
   } else if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] == 0) {
-
-    std::cout << "In case 2" << std::endl;
-
     duplo_const.chan.recv(&eval_card_changed, num_cards_eval_changed[0]);
   } else if (num_cards_eval_changed [0] == 0 && num_cards_const_changed[0] > 0){
-
-    std::cout << "In case 3" << std::endl;
-
     duplo_const.chan.send(const_card_changed.data(), num_cards_const_changed[0]);
-  } else {
-
-    std::cout << "In case 4" << std::endl;
-
   }
 
   std::cout << "CONSTRUCTOR CHANGED: \t" << (int) num_cards_const_changed[0] << " CARDS, ";
@@ -254,6 +225,9 @@ int main(int argc, const char* argv[]) {
 
   std::cout << "====== CONSTRUCTOR: FINAL HAND HAVE BEEN DEALT: ======" << std::endl;
 
+  /*
+   * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
+   * */
   const_output_indices[0] = GetFinalHandIndices(num_cards_const_changed[0],
                                                 const_output_indices[0], const_card_changed.data(),
                                                 const_first_change_card_index);
