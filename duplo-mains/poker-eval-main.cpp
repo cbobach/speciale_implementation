@@ -10,15 +10,15 @@ int main(int argc, const char* argv[]) {
   opt.footer = "ezOptionParser 0.1.4  Copyright (C) 2011 Remik Ziemlinski\nThis program is free and without warranty.\n";
 
   opt.add(
-    "", // Default.
-    0, // Required?
-    0, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "Display usage instructions.", // Help description.
-    "-h",     // Flag token.
-    "-help",  // Flag token.
-    "--help", // Flag token.
-    "--usage" // Flag token.
+          "", // Default.
+          0, // Required?
+          0, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "Display usage instructions.", // Help description.
+          "-h",     // Flag token.
+          "-help",  // Flag token.
+          "--help", // Flag token.
+          "--usage" // Flag token.
   );
 
   opt.add(
@@ -31,30 +31,30 @@ int main(int argc, const char* argv[]) {
   );
 
   opt.add(
-    default_execs.c_str(), // Default.
-    0, // Required?
-    3, // Number of args expected.
-    ',', // Delimiter if expecting multiple args.
-    "Number of parallel executions for each phase. Preprocessing, Offline and Online.", // Help description.
-    "-e"
+          default_execs.c_str(), // Default.
+          0, // Required?
+          3, // Number of args expected.
+          ',', // Delimiter if expecting multiple args.
+          "Number of parallel executions for each phase. Preprocessing, Offline and Online.", // Help description.
+          "-e"
   );
 
   opt.add(
-    default_ip_address.c_str(), // Default.
-    0, // Required?
-    1, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "IP Address of constructor", // Help description.
-    "-ip_const"
+          default_ip_address.c_str(), // Default.
+          0, // Required?
+          1, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "IP Address of constructor", // Help description.
+          "-ip_const"
   );
 
   opt.add(
-    default_port_const.c_str(), // Default.
-    0, // Required?
-    1, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "Port to connect to on Constructor", // Help description.
-    "-p_const"
+          default_port_const.c_str(), // Default.
+          0, // Required?
+          1, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "Port to connect to on Constructor", // Help description.
+          "-p_const"
   );
 
   //Attempt to parse input
@@ -110,155 +110,157 @@ int main(int argc, const char* argv[]) {
   //Run initial Setup (BaseOT) phase
   duplo_eval.Setup();
 
-  std::cout << "====== EVALUATOR: PRE-PROCESSING ======" << std::endl;
-  //Run Preprocessing phase
-  for (int i = 0; i < composed_circuit.num_functions; ++i) {
-    duplo_eval.PreprocessComponentType(composed_circuit.functions[i].circuit_name,
-                                       composed_circuit.functions[i],
-                                       composed_circuit.num_circuit_copies[i],
-                                       (uint32_t) num_execs_components);
+  while (true) {
+    std::cout << "====== EVALUATOR: PRE-PROCESSING ======" << std::endl;
+    //Run Preprocessing phase
+    for (int i = 0; i < composed_circuit.num_functions; ++i) {
+      duplo_eval.PreprocessComponentType(composed_circuit.functions[i].circuit_name,
+                                         composed_circuit.functions[i],
+                                         composed_circuit.num_circuit_copies[i],
+                                         (uint32_t) num_execs_components);
+    }
+
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
+
+    duplo_eval.PrepareComponents(composed_circuit.num_inp_wires, (uint32_t) num_execs_auths);
+
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
+
+    duplo_eval.Build(composed_circuit, (uint32_t) num_execs_auths);
+
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
+
+    /*
+     * CHOOSING SEED
+     * */
+    osuCrypto::BitVector seed = GetSeed(SIZE_SEED);
+    std::cout << "====== EVALUATOR: CHOSE SEED:  ======" << std::endl;
+    PrintHex(seed.data(), SIZE_SEED / 8);
+    std::cout << std::endl;
+
+    BYTEArrayVector output_keys(composed_circuit.num_out_wires, CSEC_BYTES);
+    duplo_eval.Evaluate(composed_circuit, seed, output_keys, (uint32_t) num_execs_online);
+
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
+
+    std::cout << "====== EVALUATOR: HAVE BEEN DEALT CARDS: ======" << std::endl;
+
+    /*
+     * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
+     * */
+    std::vector<osuCrypto::BitVector> outputs(composed_circuit.output_circuits.size());
+    std::vector<std::vector<uint32_t>> const_output_indices(composed_circuit.output_circuits.size());
+    const_output_indices[0] = GetFirstHandIndices(const_first_card_index, HAND_SIZE);
+
+    std::vector<std::vector<uint32_t>> eval_output_indices(composed_circuit.output_circuits.size());
+    eval_output_indices[0] = GetFirstHandIndices(eval_first_card_index, HAND_SIZE);
+
+    duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
+                          output_keys, outputs, true, num_execs_online);
+
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
+
+    /*
+     * DISPLAYING FIRST HAND
+     * */
+    osuCrypto::BitVector hand;
+    hand.copy(outputs[0], 0, outputs[0].size());
+    hand = Convert6bitTo8BitVector(hand);
+    PrintHand(hand.data());
+
+    /*
+     * TAKING INPUTS FRO CARDS TO CHANGE
+     * */
+    std::vector<uint8_t> eval_card_changed = GetCardsToChange();
+    std::cout << "====== EVALUATOR: WAITING FOR CONSTRUCTOR TO CHANGE CARDS ======" << std::endl
+              << std::endl;
+
+    /*
+     * SENDING NUMBER OF CARDS CHANGED BY EVALUATOR.
+     * RECEIVING NUMBER OF CARDS CHANGED BY CONSTRUCTOR.
+     * */
+    uint8_t num_cards_const_changed[1];
+    uint8_t num_cards_eval_changed[1];
+    num_cards_eval_changed[0] = eval_card_changed.size();
+    duplo_eval.chan.send(num_cards_eval_changed, 1);
+    duplo_eval.chan.recv(num_cards_const_changed, 1);
+
+    /*
+     * SENDING WHICH CARDS HAVE BEEN CHANGED BY EVALUATOR.
+     * RECEIVING WHICH CARDS HAVE BEEN CHANGED BY CONSTRUCTOR.
+     * */
+    uint8_t const_card_changed[HAND_SIZE];
+    if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] > 0) {
+      duplo_eval.chan.send(eval_card_changed.data(), num_cards_eval_changed[0]);
+      duplo_eval.chan.recv(&const_card_changed, num_cards_const_changed[0]);
+    } else if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] == 0) {
+      duplo_eval.chan.send(eval_card_changed.data(), num_cards_eval_changed[0]);
+    } else if (num_cards_eval_changed[0] == 0 && num_cards_const_changed[0] > 0) {
+      duplo_eval.chan.recv(&const_card_changed, num_cards_const_changed[0]);
+    }
+
+    std::cout << "CONSTRUCTOR CHANGED: \t" << (int) num_cards_const_changed[0] << " CARDS, ";
+    for (int j = 0; j < num_cards_const_changed[0]; ++j) {
+      std::cout << (int) const_card_changed[j] << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "EVALUATOR CHANGED: \t" << (int) num_cards_eval_changed[0] << " CARDS, ";
+    for (int k = 0; k < num_cards_eval_changed[0]; ++k) {
+      std::cout << (int) eval_card_changed[k] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << std::endl;
+
+
+    std::cout << "====== EVALUATOR: FINAL HAND HAVE BEEN DEALT: ======" << std::endl;
+
+    /*
+     * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
+     * */
+    const_output_indices[0] = GetFinalHandIndices(num_cards_const_changed[0],
+                                                  const_output_indices[0], const_card_changed,
+                                                  const_first_change_card_index);
+
+    eval_output_indices[0] = GetFinalHandIndices(num_cards_eval_changed[0],
+                                                 eval_output_indices[0], eval_card_changed.data(),
+                                                 eval_first_change_card_index);
+
+    duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
+                          output_keys, outputs, true, num_execs_online);
+
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
+
+    /*
+     * DISPLAYING EVALUATORS FINAL HAND
+     * */
+    hand.copy(outputs[0], 0, outputs[0].size());
+    hand = Convert6bitTo8BitVector(hand);
+    PrintHand(hand.data());
+
+
+    std::cout << "====== EVALUATOR: CONSTRUCTOR GOT FINAL HAND: ======" << std::endl;
+
+    duplo_eval.DecodeKeys(composed_circuit, eval_output_indices, const_output_indices,
+                          output_keys, outputs, true, num_execs_online);
+
+    /*
+     * DISPLAYING CONSTRUCTORS FINAL HAND
+     * */
+    hand.copy(outputs[0], 0, outputs[0].size());
+    hand = Convert6bitTo8BitVector(hand);
+    PrintHand(hand.data());
   }
-
-  //Sync with Constructor
-  duplo_eval.chan.send(&snd, 1);
-  duplo_eval.chan.recv(&rcv, 1);
-
-  duplo_eval.PrepareComponents(composed_circuit.num_inp_wires, (uint32_t) num_execs_auths);
-
-  //Sync with Constructor
-  duplo_eval.chan.send(&snd, 1);
-  duplo_eval.chan.recv(&rcv, 1);
-
-  duplo_eval.Build(composed_circuit, (uint32_t) num_execs_auths);
-
-  //Sync with Constructor
-  duplo_eval.chan.send(&snd, 1);
-  duplo_eval.chan.recv(&rcv, 1);
-
-  /*
-   * CHOOSING SEED
-   * */
-  osuCrypto::BitVector seed = GetSeed(SIZE_SEED);
-  std::cout << "====== EVALUATOR: CHOSE SEED:  ======" << std::endl;
-  PrintHex(seed.data(), SIZE_SEED/8);
-  std::cout << std::endl;
-
-  BYTEArrayVector output_keys(composed_circuit.num_out_wires, CSEC_BYTES);
-  duplo_eval.Evaluate(composed_circuit, seed, output_keys, (uint32_t) num_execs_online);
-
-  //Sync with Constructor
-  duplo_eval.chan.send(&snd, 1);
-  duplo_eval.chan.recv(&rcv, 1);
-
-  std::cout << "====== EVALUATOR: HAVE BEEN DEALT CARDS: ======" << std::endl;
-
-  /*
-   * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
-   * */
-  std::vector<osuCrypto::BitVector> outputs(composed_circuit.output_circuits.size());
-  std::vector<std::vector<uint32_t>> const_output_indices(composed_circuit.output_circuits.size());
-  const_output_indices[0] = GetFirstHandIndices(const_first_card_index, HAND_SIZE);
-
-  std::vector<std::vector<uint32_t>> eval_output_indices(composed_circuit.output_circuits.size());
-  eval_output_indices[0] = GetFirstHandIndices(eval_first_card_index, HAND_SIZE);
-
-  duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
-                        output_keys, outputs, true, num_execs_online);
-
-  //Sync with Constructor
-  duplo_eval.chan.send(&snd, 1);
-  duplo_eval.chan.recv(&rcv, 1);
-
-  /*
-   * DISPLAYING FIRST HAND
-   * */
-  osuCrypto::BitVector hand;
-  hand.copy(outputs[0], 0, outputs[0].size());
-  hand = Convert6bitTo8BitVector(hand);
-  PrintHand(hand.data());
-
-  /*
-   * TAKING INPUTS FRO CARDS TO CHANGE
-   * */
-  std::vector<uint8_t> eval_card_changed = GetCardsToChange();
-  std::cout << "====== EVALUATOR: WAITING FOR CONSTRUCTOR TO CHANGE CARDS ======" << std::endl
-            << std::endl;
-
-  /*
-   * SENDING NUMBER OF CARDS CHANGED BY EVALUATOR.
-   * RECEIVING NUMBER OF CARDS CHANGED BY CONSTRUCTOR.
-   * */
-  uint8_t num_cards_const_changed[1];
-  uint8_t num_cards_eval_changed[1];
-  num_cards_eval_changed[0] = eval_card_changed.size();
-  duplo_eval.chan.send(num_cards_eval_changed, 1);
-  duplo_eval.chan.recv(num_cards_const_changed, 1);
-
-  /*
-   * SENDING WHICH CARDS HAVE BEEN CHANGED BY EVALUATOR.
-   * RECEIVING WHICH CARDS HAVE BEEN CHANGED BY CONSTRUCTOR.
-   * */
-  uint8_t const_card_changed[HAND_SIZE];
-  if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] > 0) {
-    duplo_eval.chan.send(eval_card_changed.data(), num_cards_eval_changed[0]);
-    duplo_eval.chan.recv(&const_card_changed, num_cards_const_changed[0]);
-  } else if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] == 0) {
-    duplo_eval.chan.send(eval_card_changed.data(), num_cards_eval_changed[0]);
-  } else if (num_cards_eval_changed[0] == 0 && num_cards_const_changed[0] > 0) {
-    duplo_eval.chan.recv(&const_card_changed, num_cards_const_changed[0]);
-  }
-
-  std::cout << "CONSTRUCTOR CHANGED: \t" << (int) num_cards_const_changed[0] << " CARDS, ";
-  for (int j = 0; j < num_cards_const_changed[0]; ++j) {
-    std::cout << (int) const_card_changed[j] << " ";
-  }
-  std::cout << std:: endl;
-
-  std::cout << "EVALUATOR CHANGED: \t" << (int) num_cards_eval_changed[0] << " CARDS, ";
-  for (int k = 0; k < num_cards_eval_changed[0]; ++k) {
-    std::cout << (int) eval_card_changed[k] << " ";
-  }
-  std::cout << std:: endl;
-  std::cout << std:: endl;
-
-
-  std::cout << "====== EVALUATOR: FINAL HAND HAVE BEEN DEALT: ======" << std::endl;
-
-  /*
-   * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
-   * */
-  const_output_indices[0] = GetFinalHandIndices(num_cards_const_changed[0],
-                                                const_output_indices[0], const_card_changed,
-                                                const_first_change_card_index);
-
-  eval_output_indices[0] = GetFinalHandIndices(num_cards_eval_changed[0],
-                                               eval_output_indices[0], eval_card_changed.data(),
-                                               eval_first_change_card_index);
-
-  duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
-                        output_keys, outputs, true, num_execs_online);
-
-  //Sync with Constructor
-  duplo_eval.chan.send(&snd, 1);
-  duplo_eval.chan.recv(&rcv, 1);
-
-  /*
-   * DISPLAYING EVALUATORS FINAL HAND
-   * */
-  hand.copy(outputs[0], 0, outputs[0].size());
-  hand = Convert6bitTo8BitVector(hand);
-  PrintHand(hand.data());
-
-
-  std::cout << "====== EVALUATOR: CONSTRUCTOR GOT FINAL HAND: ======" << std::endl;
-
-  duplo_eval.DecodeKeys(composed_circuit, eval_output_indices, const_output_indices,
-                        output_keys, outputs, true, num_execs_online);
-
-  /*
-   * DISPLAYING CONSTRUCTORS FINAL HAND
-   * */
-  hand.copy(outputs[0], 0, outputs[0].size());
-  hand = Convert6bitTo8BitVector(hand);
-  PrintHand(hand.data());
 }
