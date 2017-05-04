@@ -103,8 +103,8 @@ int main(int argc, const char* argv[]) {
   DuploConstructor duplo_const(duplo_constant_seeds[0], (uint32_t) max_num_parallel_execs, (bool) ram_only);
 
 
-  std::cout << "====== CONSTRUCTOR: WAITING FOR EVALUATOR ON: "
-            << ip_address_const << ":" << port_const << " ======" << std::endl;
+  std::cout << "====== CONSTRUCTOR: WAITING FOR EVALUATOR ON, "
+            << "PORT: " << port_const << " ======" << std::endl;
   duplo_const.Connect(ip_address_const, (uint16_t) port_const);
 
   //Values used for network syncing after each phase

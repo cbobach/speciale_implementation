@@ -100,7 +100,9 @@ int main(int argc, const char* argv[]) {
   int max_num_parallel_execs = max_element(num_execs.begin(), num_execs.end())[0];
   DuploEvaluator duplo_eval(duplo_constant_seeds[1], (uint32_t) max_num_parallel_execs, (bool) ram_only);
 
-  std::cout << "====== EVALUATOR: CONNECTING TO CONSTRUCTOR ======" << std::endl;
+  std::cout << "====== EVALUATOR: CONNECTING TO CONSTRUCTOR ON "
+            << ip_address_const << ", PORT: " << port_const
+            << " ======" << std::endl;
   duplo_eval.Connect(ip_address_const, (uint16_t) port_const);
 
   //Values used for network syncing after each phase
