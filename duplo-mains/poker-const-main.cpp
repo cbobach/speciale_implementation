@@ -197,18 +197,12 @@ int main(int argc, const char* argv[]) {
           decode_keys_oponent_hand_begin = GET_TIME(),
           decode_keys_oponent_hand_end = GET_TIME();
 
-  uint64_t
-          decode_data_first_hand_sent,
-          decode_data_final_hand_sent,
-          decode_data_oponent_hand_sent;
+  uint64_t decode_data_sent;
 
   uint64_t
           first_hand_nano = 0,
           final_hand_nano = 0,
-          oponent_hand_nano = 0,
-          first_hand_sent = 0,
-          final_hand_sent = 0,
-          oponent_hand_sent = 0;
+          oponent_hand_nano = 0;
 
   for (int l = 0; l < num_iters; ++l) {
     std::cout << "====== CONSTRUCTOR: HAVE BEEN DEALT CARDS: ======" << std::endl;
@@ -234,10 +228,7 @@ int main(int argc, const char* argv[]) {
     duplo_const.chan.recv(&rcv, 1);
     duplo_const.chan.send(&snd, 1);
 
-    decode_data_first_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent;
-
     first_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_first_hand_end - decode_keys_first_hand_begin).count();
-    first_hand_sent += decode_data_first_hand_sent;
 
     /*
      * DISPLAYING FIRST HAND
@@ -317,10 +308,7 @@ int main(int argc, const char* argv[]) {
     duplo_const.chan.recv(&rcv, 1);
     duplo_const.chan.send(&snd, 1);
 
-    decode_data_final_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - first_hand_sent;
-
     final_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_final_hand_end - decode_keys_final_hand_begin).count();
-    final_hand_sent += decode_data_final_hand_sent;
 
     /*
      * DISPLAYING CONSTRUCTORS FINAL HAND
@@ -341,10 +329,7 @@ int main(int argc, const char* argv[]) {
     duplo_const.chan.recv(&rcv, 1);
     duplo_const.chan.send(&snd, 1);
 
-    decode_data_oponent_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - first_hand_sent - final_hand_sent;
-
     oponent_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_oponent_hand_end - decode_keys_oponent_hand_begin).count();
-    oponent_hand_sent += decode_data_oponent_hand_sent;
 
     /*
      * DISPLAYING EVALUATORS FINAL HAND
@@ -355,6 +340,7 @@ int main(int argc, const char* argv[]) {
   }
 
 
+  decode_data_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent;
 
   // Average out the timings of each phase and print results
   uint64_t setup_time_nano = std::chrono::duration_cast<std::chrono::nanoseconds>(setup_end - setup_begin).count();
@@ -368,15 +354,15 @@ int main(int argc, const char* argv[]) {
   std::cout << "=============================" << std::endl;
   std::cout
           << "\t"
-          << "#Decks:\t"
-          << "Setup:\t\t"
-          << "Circuit Preprocess:\t"
-          << "Auth Preprocess:\t"
+          << "#D:\t"
+          << "Setup:\t"
+          << "C Pre:\t"
+          << "A Pre:\t"
           << "Build:\t"
           << "Eval:\t"
-          << "Decode first:\t"
-          << "Decode final:\t"
-          << "Decode oponent:\t"
+          << "Dec 1:\t"
+          << "Dec 2:\t"
+          << "Dec Op:\t"
           << std::endl;
 
   std::cout << std::setprecision(2);
@@ -386,12 +372,12 @@ int main(int argc, const char* argv[]) {
           << "ms,\t"
           << num_iters << ",\t"
           << (double) setup_time_nano / num_iters / 1000000 << ",\t"
-          << (double) preprocess_time_nano / num_iters / 1000000 << ",\t\t"
-          << (double) prepare_eval_time_nano / num_iters / 1000000 << ",\t\t\t"
+          << (double) preprocess_time_nano / num_iters / 1000000 << ",\t"
+          << (double) prepare_eval_time_nano / num_iters / 1000000 << ",\t"
           << (double) build_time_nano / num_iters / 1000000 << ",\t"
           << (double) eval_circuits_nano / num_iters / 1000000 << ",\t"
-          << (double) first_hand_nano / num_iters / 1000000 << ",\t\t"
-          << (double) final_hand_nano / num_iters / 1000000 << ",\t\t"
+          << (double) first_hand_nano / num_iters / 1000000 << ",\t"
+          << (double) final_hand_nano / num_iters / 1000000 << ",\t"
           << (double) oponent_hand_nano / num_iters / 1000000
           << std::endl;
 
@@ -416,14 +402,12 @@ int main(int argc, const char* argv[]) {
   std::cout
           << "kb,\t"
           << num_iters << ",\t"
-          << (double) setup_data_sent / num_iters / 1000 << ",\t\t"
-          << (double) preprocess_data_sent / num_iters / 1000 << ",\t\t"
-          << (double) prepare_data_sent / num_iters / 1000 << ",\t\t"
+          << (double) setup_data_sent / num_iters / 1000 << ",\t"
+          << (double) preprocess_data_sent / num_iters / 1000 << ",\t"
+          << (double) prepare_data_sent / num_iters / 1000 << ",\t"
           << (double) build_data_sent / num_iters / 1000 << ",\t"
           << (double) eval_data_sent / num_iters / 1000 << ",\t"
-          << (double) first_hand_sent / num_iters / 1000 << ",\t\t"
-          << (double) final_hand_sent / num_iters / 1000 << ",\t\t"
-          << (double) oponent_hand_sent / num_iters / 1000
+          << (double) decode_data_sent / num_iters / 1000
           << std::endl;
 
   std::ofstream kb_file ("const_kb.log", std::ios_base::app);
@@ -435,9 +419,7 @@ int main(int argc, const char* argv[]) {
             << (double) prepare_data_sent / num_iters / 1000 << ", "
             << (double) build_data_sent / num_iters / 1000 << ", "
             << (double) eval_data_sent / num_iters / 1000 << ", "
-            << (double) first_hand_sent / num_iters / 1000 << ", "
-            << (double) final_hand_sent / num_iters / 1000 << ", "
-            << (double) oponent_hand_sent / num_iters / 1000
+            << (double) decode_data_sent / num_iters / 1000
             << std::endl;
   }else {
     std::cout << "Could not write kb to log file!" << std::endl;

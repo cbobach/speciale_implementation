@@ -12,11 +12,11 @@ set(DUPLO_SRCS duplo/duplo-evaluator.cpp duplo/duplo-constructor.cpp duplo/duplo
 add_library(DUPLO ${DUPLO_SRCS})
 target_link_libraries(DUPLO STORAGE GARBLING CIRCUIT SPLIT_COMMIT)
 
-#add_executable(DuploConstructor duplo-mains/duplo-const-main.cpp)
-#target_link_libraries(DuploConstructor DUPLO)
-#
-#add_executable(DuploEvaluator duplo-mains/duplo-eval-main.cpp)
-#target_link_libraries(DuploEvaluator DUPLO)
+add_executable(DuploConstructor duplo-mains/duplo-const-main.cpp)
+target_link_libraries(DuploConstructor DUPLO)
+
+add_executable(DuploEvaluator duplo-mains/duplo-eval-main.cpp)
+target_link_libraries(DuploEvaluator DUPLO)
 
 add_executable(PokerConstructor duplo-mains/poker-const-main.cpp)
 target_link_libraries(PokerConstructor DUPLO)

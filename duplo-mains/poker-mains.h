@@ -6,7 +6,7 @@
 using namespace ez;
 
 //Hardcoded default values
-static std::string default_circuit_file("circuits/cb/conditional_swap_shuffle.wir.GC_duplo");
+static std::string default_circuit_file("circuits/cb/conditional_swap_shuffle1.wir.GC_duplo");
 static std::string default_num_iters("1");
 static std::string default_interactive("1");
 static std::string default_execs("1,1,1");
