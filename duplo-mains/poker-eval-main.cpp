@@ -315,7 +315,7 @@ int main(int argc, const char* argv[]) {
     duplo_eval.chan.send(&snd, 1);
     duplo_eval.chan.recv(&rcv, 1);
 
-    decode_data_final_hand_sent = duplo_eval.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - decode_data_first_hand_sent;
+    decode_data_final_hand_sent = duplo_eval.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - first_hand_sent;
 
     final_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_final_hand_end - decode_keys_final_hand_begin).count();
     final_hand_sent += decode_data_final_hand_sent;
@@ -340,7 +340,7 @@ int main(int argc, const char* argv[]) {
     duplo_eval.chan.send(&snd, 1);
     duplo_eval.chan.recv(&rcv, 1);
 
-    decode_data_oponent_hand_sent = duplo_eval.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - decode_data_first_hand_sent - decode_data_final_hand_sent;
+    decode_data_oponent_hand_sent = duplo_eval.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - first_hand_sent - final_hand_sent;
 
     oponent_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_oponent_hand_end - decode_keys_oponent_hand_begin).count();
     oponent_hand_sent += decode_data_oponent_hand_sent;
