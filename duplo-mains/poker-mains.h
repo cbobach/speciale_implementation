@@ -7,6 +7,8 @@ using namespace ez;
 
 //Hardcoded default values
 static std::string default_circuit_file("circuits/cb/conditional_swap_shuffle.wir.GC_duplo");
+static std::string default_num_iters("1");
+static std::string default_interactive("1");
 static std::string default_execs("1,1,1");
 static std::string default_ip_address("127.0.0.1");
 static std::string default_port_const("28001");
@@ -23,8 +25,6 @@ static osuCrypto::u64 CARD_SIZE = 6;
 static osuCrypto::u64 HAND_SIZE = 5;
 
 static osuCrypto::u64 SIZE_OUTPUT = DECK_SIZE * CARD_SIZE;
-
-static double SIZE_SEED = 830;
 
 static int const_first_card_index = 0;
 static int const_first_change_card_index = 5;

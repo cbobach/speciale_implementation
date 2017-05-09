@@ -6,19 +6,19 @@ int main(int argc, const char* argv[]) {
 
   opt.overview = "PokerConstructor Passing Parameters Guide.";
   opt.syntax = "PokerConstructor first second third forth fifth sixth";
-  opt.example = "PokerConstructor -c path/to/file.wir.GC_duplo -e 8,2,1 -ip_const 10.11.100.216 -p_const 28001\n\n";
+  opt.example = "PokerConstructor -f path/to/file.wir.GC_duplo -e 8,2,1 -ip_const 10.11.100.216 -p_const 28001 -n 1 -i 1\n\n";
   opt.footer = "ezOptionParser 0.1.4  Copyright (C) 2011 Remik Ziemlinski\nThis program is free and without warranty.\n";
 
   opt.add(
-    "", // Default.
-    0, // Required?
-    0, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "Display usage instructions.", // Help description.
-    "-h",     // Flag token.
-    "-help",  // Flag token.
-    "--help", // Flag token.
-    "--usage" // Flag token.
+          "", // Default.
+          0, // Required?
+          0, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "Display usage instructions.", // Help description.
+          "-h",     // Flag token.
+          "-help",  // Flag token.
+          "--help", // Flag token.
+          "--usage" // Flag token.
   );
 
   opt.add(
@@ -26,35 +26,53 @@ int main(int argc, const char* argv[]) {
           0, // Required?
           1, // Number of args expected.
           0, // Delimiter if expecting multiple args.
-          "Circuit representation of shuffle.", // Help description.
-          "-c"
+          "Circuitfile representation of shuffle.", // Help description.
+          "-f"
   );
 
   opt.add(
-    default_execs.c_str(), // Default.
-    0, // Required?
-    3, // Number of args expected.
-    ',', // Delimiter if expecting multiple args.
-    "Number of parallel executions for each phase. Preprocessing, Offline and Online.", // Help description.
-    "-e"
+          default_execs.c_str(), // Default.
+          0, // Required?
+          3, // Number of args expected.
+          ',', // Delimiter if expecting multiple args.
+          "Number of parallel executions for each phase. Preprocessing, Offline and Online.", // Help description.
+          "-e"
   );
 
   opt.add(
-    default_ip_address.c_str(), // Default.
-    0, // Required?
-    1, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "IP Address of Constructor", // Help description.
-    "-ip_const"
+          default_num_iters.c_str(), // Default.
+          0, // Required?
+          1, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "Number of parallel circuits", // Help description.
+          "-n"
   );
 
   opt.add(
-    default_port_const.c_str(), // Default.
-    0, // Required?
-    1, // Number of args expected.
-    0, // Delimiter if expecting multiple args.
-    "Port to listen on for Constructor", // Help description.
-    "-p_const"
+          default_interactive.c_str(), // Default.
+          0, // Required?
+          1, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "Interactive", // Help description.
+          "-i"
+  );
+
+  opt.add(
+          default_ip_address.c_str(), // Default.
+          0, // Required?
+          1, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "IP Address of Constructor", // Help description.
+          "-ip_const"
+  );
+
+  opt.add(
+          default_port_const.c_str(), // Default.
+          0, // Required?
+          1, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "Port to listen on for Constructor", // Help description.
+          "-p_const"
   );
 
   //Attempt to parse input
@@ -75,13 +93,13 @@ int main(int argc, const char* argv[]) {
 
   //Copy inputs into the right variables
   std::vector<int> num_execs;
-  int num_iters = 1, num_execs_components, num_execs_auths, num_execs_online,
-          port_const, ram_only = 0;
+  int num_iters, num_execs_components, num_execs_auths, num_execs_online,
+          port_const, ram_only = 0, interactive;
   std::string circuit_name = "card_shuffle", ip_address_const, exec_name,
           circuit_file;
 
   std::string prefix("const_");
-  opt.get("-c")->getString(circuit_file);
+  opt.get("-f")->getString(circuit_file);
   circuit_name = prefix + circuit_name;
 
   opt.get("-e")->getInts(num_execs);
@@ -91,6 +109,9 @@ int main(int argc, const char* argv[]) {
 
   opt.get("-ip_const")->getString(ip_address_const);
   opt.get("-p_const")->getInt(port_const);
+
+  opt.get("-n")->getInt(num_iters);
+  opt.get("-i")->getInt(interactive);
 
   //Set the circuit variables according to circuit_name
   ComposedCircuit composed_circuit;
@@ -154,9 +175,9 @@ int main(int argc, const char* argv[]) {
   /*
    * CHOOSING SEED
    * */
-  osuCrypto::BitVector seed = GetSeed(SIZE_SEED);
+  osuCrypto::BitVector seed = GetSeed(composed_circuit.num_const_inp_wires);
   std::cout << "====== CONSTRUCTOR: CHOSE SEED: ======" << std::endl;
-  PrintHex(seed.data(), SIZE_SEED / 8);
+  PrintHex(seed.data(), composed_circuit.num_const_inp_wires / 8);
   std::cout << std::endl;
 
   auto eval_circuits_begin = GET_TIME();
@@ -168,130 +189,168 @@ int main(int argc, const char* argv[]) {
   duplo_const.chan.send(&snd, 1);
   uint64_t eval_data_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent;
 
-  std::cout << "====== CONSTRUCTOR: HAVE BEEN DEALT CARDS: ======" << std::endl;
 
-  /*
-   * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
-   * */
-  std::vector<osuCrypto::BitVector> outputs(composed_circuit.output_circuits.size());
-  std::vector<std::vector<uint32_t>> const_output_indices(composed_circuit.output_circuits.size());
-  const_output_indices[0] = GetFirstHandIndices(const_first_card_index, HAND_SIZE);
+  auto decode_keys_first_hand_begin = GET_TIME(),
+          decode_keys_first_hand_end = GET_TIME(),
+          decode_keys_final_hand_begin = GET_TIME(),
+          decode_keys_final_hand_end = GET_TIME(),
+          decode_keys_oponent_hand_begin = GET_TIME(),
+          decode_keys_oponent_hand_end = GET_TIME();
 
-  std::vector<std::vector<uint32_t>> eval_output_indices(composed_circuit.output_circuits.size());
-  eval_output_indices[0] = GetFirstHandIndices(eval_first_card_index, HAND_SIZE);
+  uint64_t
+          decode_data_first_hand_sent,
+          decode_data_final_hand_sent,
+          decode_data_oponent_hand_sent;
 
-  auto decode_keys_first_hand_begin = GET_TIME();
-  duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
-                         true, num_execs_online);
-  auto decode_keys_first_hand_end = GET_TIME();
+  uint64_t
+          first_hand_nano = 0,
+          final_hand_nano = 0,
+          oponent_hand_nano = 0,
+          first_hand_sent = 0,
+          final_hand_sent = 0,
+          oponent_hand_sent = 0;
 
-  //Sync with Evaluator
-  duplo_const.chan.recv(&rcv, 1);
-  duplo_const.chan.send(&snd, 1);
-  uint64_t decode_data_first_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent;
+  for (int l = 0; l < num_iters; ++l) {
+    std::cout << "====== CONSTRUCTOR: HAVE BEEN DEALT CARDS: ======" << std::endl;
 
-  /*
-   * DISPLAYING FIRST HAND
-   * */
-  osuCrypto::BitVector hand;
-  hand.copy(outputs[0], 0, outputs[0].size());
-  hand = Convert6bitTo8BitVector(hand);
-  PrintHand(hand.data());
+    /*
+     * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
+     * */
+    std::vector<osuCrypto::BitVector> outputs(composed_circuit.output_circuits.size());
+    std::vector<std::vector<uint32_t>> const_output_indices(composed_circuit.output_circuits.size());
+    const_output_indices[0] = GetFirstHandIndices(const_first_card_index + DECK_SIZE * l, HAND_SIZE);
 
-  /*
-   * RECEIVING INPUTS FOR CARDS TO CHANGE
-   * */
-  std::vector<uint8_t> const_card_changed = GetCardsToChange();
-  std::cout << "====== CONSTRUCTOR: WAITING FOR EVALUATOR TO CHANGE CARDS ======" << std::endl
-            << std::endl;
+    std::vector<std::vector<uint32_t>> eval_output_indices(composed_circuit.output_circuits.size());
+    eval_output_indices[0] = GetFirstHandIndices(eval_first_card_index + DECK_SIZE * l, HAND_SIZE);
 
-  /*
-   * RECEIVING NUMBERS OF CARDS CHANGED BY EVALUATOR.
-   * SENDING NUMBER OF CARDS CHANGED BY CONSTRUCTOR
-   * */
-  uint8_t num_cards_const_changed[1];
-  uint8_t num_cards_eval_changed[1];
-  num_cards_const_changed[0] = const_card_changed.size();
-  duplo_const.chan.recv(num_cards_eval_changed, 1);
-  duplo_const.chan.send(num_cards_const_changed, 1);
+    decode_keys_first_hand_begin = GET_TIME();
+    duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
+                           true, num_execs_online);
+    decode_keys_first_hand_end = GET_TIME();
 
-  /*
-   * RECEIVING WHICH CARDS HAVE BEEN CHANGED BY EVALUATOR.
-   * SENDING WHICH CARDS HAVE BEEN CHANGED BY CONSTRUCTOR
-   * */
-  uint8_t eval_card_changed[HAND_SIZE];
-  if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] > 0) {
-    duplo_const.chan.recv(&eval_card_changed, num_cards_eval_changed[0]);
-    duplo_const.chan.send(const_card_changed.data(), num_cards_const_changed[0]);
-  } else if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] == 0) {
-    duplo_const.chan.recv(&eval_card_changed, num_cards_eval_changed[0]);
-  } else if (num_cards_eval_changed[0] == 0 && num_cards_const_changed[0] > 0) {
-    duplo_const.chan.send(const_card_changed.data(), num_cards_const_changed[0]);
+    //Sync with Evaluator
+    duplo_const.chan.recv(&rcv, 1);
+    duplo_const.chan.send(&snd, 1);
+
+    decode_data_first_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent;
+
+    first_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_first_hand_end - decode_keys_first_hand_begin).count();
+    first_hand_sent += decode_data_first_hand_sent;
+
+    /*
+     * DISPLAYING FIRST HAND
+     * */
+    osuCrypto::BitVector hand;
+    hand.copy(outputs[0], 0, outputs[0].size());
+    hand = Convert6bitTo8BitVector(hand);
+    PrintHand(hand.data());
+
+    /*
+     * RECEIVING INPUTS FOR CARDS TO CHANGE
+     * */
+    std::vector<uint8_t> const_card_changed;
+    if(interactive)
+      const_card_changed = GetCardsToChange();
+
+    std::cout << "====== CONSTRUCTOR: WAITING FOR EVALUATOR TO CHANGE CARDS ======" << std::endl
+              << std::endl;
+
+    /*
+     * RECEIVING NUMBERS OF CARDS CHANGED BY EVALUATOR.
+     * SENDING NUMBER OF CARDS CHANGED BY CONSTRUCTOR
+     * */
+    uint8_t num_cards_const_changed[1];
+    uint8_t num_cards_eval_changed[1];
+    num_cards_const_changed[0] = const_card_changed.size();
+
+    duplo_const.chan.recv(num_cards_eval_changed, 1);
+    duplo_const.chan.send(num_cards_const_changed, 1);
+
+    /*
+     * RECEIVING WHICH CARDS HAVE BEEN CHANGED BY EVALUATOR.
+     * SENDING WHICH CARDS HAVE BEEN CHANGED BY CONSTRUCTOR
+     * */
+    uint8_t eval_card_changed[HAND_SIZE];
+    if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] > 0) {
+      duplo_const.chan.recv(&eval_card_changed, num_cards_eval_changed[0]);
+      duplo_const.chan.send(const_card_changed.data(), num_cards_const_changed[0]);
+    } else if (num_cards_eval_changed[0] > 0 && num_cards_const_changed[0] == 0) {
+      duplo_const.chan.recv(&eval_card_changed, num_cards_eval_changed[0]);
+    } else if (num_cards_eval_changed[0] == 0 && num_cards_const_changed[0] > 0) {
+      duplo_const.chan.send(const_card_changed.data(), num_cards_const_changed[0]);
+    }
+
+    std::cout << "CONSTRUCTOR CHANGED: \t" << (int) num_cards_const_changed[0] << " CARDS, ";
+    for (int j = 0; j < num_cards_const_changed[0]; ++j) {
+      std::cout << (int) const_card_changed[j] << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "EVALUATOR CHANGED: \t" << (int) num_cards_eval_changed[0] << " CARDS, ";
+    for (int k = 0; k < num_cards_eval_changed[0]; ++k) {
+      std::cout << (int) eval_card_changed[k] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "====== CONSTRUCTOR: FINAL HAND HAVE BEEN DEALT: ======" << std::endl;
+
+    /*
+     * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
+     * */
+    const_output_indices[0] = GetFinalHandIndices(num_cards_const_changed[0],
+                                                  const_output_indices[0], const_card_changed.data(),
+                                                  const_first_change_card_index + DECK_SIZE * l);
+
+    eval_output_indices[0] = GetFinalHandIndices(num_cards_eval_changed[0],
+                                                 eval_output_indices[0], eval_card_changed,
+                                                 eval_first_change_card_index + DECK_SIZE * l);
+
+    decode_keys_final_hand_begin = GET_TIME();
+    duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
+                           true, num_execs_online);
+    decode_keys_final_hand_end = GET_TIME();
+
+    //Sync with Evaluator
+    duplo_const.chan.recv(&rcv, 1);
+    duplo_const.chan.send(&snd, 1);
+
+    decode_data_final_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - decode_data_first_hand_sent;
+
+    final_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_final_hand_end - decode_keys_final_hand_begin).count();
+    final_hand_sent += decode_data_final_hand_sent;
+
+    /*
+     * DISPLAYING CONSTRUCTORS FINAL HAND
+     * */
+    hand.copy(outputs[0], 0, outputs[0].size());
+    hand = Convert6bitTo8BitVector(hand);
+    PrintHand(hand.data());
+
+
+    std::cout << "====== CONSTRUCTOR: EVALUATOR GOT FINAL HAND: ======" << std::endl;
+
+    decode_keys_oponent_hand_begin = GET_TIME();
+    duplo_const.DecodeKeys(composed_circuit, eval_output_indices, const_output_indices,
+                           outputs, true, num_execs_online);
+    decode_keys_oponent_hand_end = GET_TIME();
+
+    //Sync with Evaluator
+    duplo_const.chan.recv(&rcv, 1);
+    duplo_const.chan.send(&snd, 1);
+
+    decode_data_oponent_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - decode_data_first_hand_sent - decode_data_final_hand_sent;
+
+    oponent_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_oponent_hand_end - decode_keys_oponent_hand_begin).count();
+    oponent_hand_sent += decode_data_oponent_hand_sent;
+
+    /*
+     * DISPLAYING EVALUATORS FINAL HAND
+     * */
+    hand.copy(outputs[0], 0, outputs[0].size());
+    hand = Convert6bitTo8BitVector(hand);
+    PrintHand(hand.data());
   }
-
-  std::cout << "CONSTRUCTOR CHANGED: \t" << (int) num_cards_const_changed[0] << " CARDS, ";
-  for (int j = 0; j < num_cards_const_changed[0]; ++j) {
-    std::cout << (int) const_card_changed[j] << " ";
-  }
-  std::cout << std::endl;
-
-  std::cout << "EVALUATOR CHANGED: \t" << (int) num_cards_eval_changed[0] << " CARDS, ";
-  for (int k = 0; k < num_cards_eval_changed[0]; ++k) {
-    std::cout << (int) eval_card_changed[k] << " ";
-  }
-  std::cout << std::endl;
-  std::cout << std::endl;
-
-  std::cout << "====== CONSTRUCTOR: FINAL HAND HAVE BEEN DEALT: ======" << std::endl;
-
-  /*
-   * GENERATING WHICH WIRES TO OPEN TO WHICH PARTY
-   * */
-  const_output_indices[0] = GetFinalHandIndices(num_cards_const_changed[0],
-                                                const_output_indices[0], const_card_changed.data(),
-                                                const_first_change_card_index);
-
-  eval_output_indices[0] = GetFinalHandIndices(num_cards_eval_changed[0],
-                                               eval_output_indices[0], eval_card_changed,
-                                               eval_first_change_card_index);
-
-  auto decode_keys_final_hand_begin = GET_TIME();
-  duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
-                         true, num_execs_online);
-  auto decode_keys_final_hand_end = GET_TIME();
-
-  //Sync with Evaluator
-  duplo_const.chan.recv(&rcv, 1);
-  duplo_const.chan.send(&snd, 1);
-  uint64_t decode_data_final_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - decode_data_first_hand_sent;
-
-  /*
-   * DISPLAYING CONSTRUCTORS FINAL HAND
-   * */
-  hand.copy(outputs[0], 0, outputs[0].size());
-  hand = Convert6bitTo8BitVector(hand);
-  PrintHand(hand.data());
-
-
-  std::cout << "====== CONSTRUCTOR: EVALUATOR GOT FINAL HAND: ======" << std::endl;
-
-  auto decode_keys_oponent_hand_begin = GET_TIME();
-  duplo_const.DecodeKeys(composed_circuit, eval_output_indices, const_output_indices,
-                         outputs, true, num_execs_online);
-  auto decode_keys_oponent_hand_end = GET_TIME();
-
-  //Sync with Evaluator
-  duplo_const.chan.recv(&rcv, 1);
-  duplo_const.chan.send(&snd, 1);
-  uint64_t decode_data_oponent_hand_sent = duplo_const.GetTotalDataSent() - setup_data_sent - preprocess_data_sent - prepare_data_sent - build_data_sent - eval_data_sent - decode_data_first_hand_sent - decode_data_final_hand_sent;
-
-  /*
-   * DISPLAYING EVALUATORS FINAL HAND
-   * */
-  hand.copy(outputs[0], 0, outputs[0].size());
-  hand = Convert6bitTo8BitVector(hand);
-  PrintHand(hand.data());
-
 
 
 
@@ -303,35 +362,85 @@ int main(int argc, const char* argv[]) {
   uint64_t prepare_eval_time_nano = std::chrono::duration_cast<std::chrono::nanoseconds>(prepare_eval_end - prepare_eval_begin).count();
 
   uint64_t eval_circuits_nano = std::chrono::duration_cast<std::chrono::nanoseconds>(eval_circuits_end - eval_circuits_begin).count();
-  uint64_t decode_keys_first_hand_nano = std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_first_hand_end - decode_keys_first_hand_begin).count();
-  uint64_t decode_keys_final_hand_nano = std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_final_hand_end - decode_keys_final_hand_begin).count();
-  uint64_t decode_keys_oponent_hand_nano = std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_oponent_hand_end - decode_keys_oponent_hand_begin).count();
-
-  std::cout << "Setup ms:                     " << (double) setup_time_nano / num_iters / 1000000 << ",\t data sent: " << (double) setup_data_sent / num_iters / 1000 << " kB" << std::endl;
-  std::cout << "Circuit Preprocess ms:        " << (double) preprocess_time_nano / num_iters / 1000000 << ",\t data sent: " << (double) preprocess_data_sent / num_iters / 1000 << " kB" << std::endl;
-  std::cout << "Auth Preprocess ms:           " << (double) prepare_eval_time_nano / num_iters / 1000000 << ",\t data sent: " << (double) prepare_data_sent / num_iters / 1000 << " kB" << std::endl;
-  std::cout << "Build ms:                     " << (double) build_time_nano / num_iters / 1000000 << ",\t data sent: " << (double) build_data_sent / num_iters / 1000 << " kB" << std::endl;
-  std::cout << "Eval circuits ms:             " << (double) eval_circuits_nano / num_iters / 1000000 << ",\t data sent: " << (double) eval_data_sent / num_iters / 1000 << " kB" << std::endl;
-  std::cout << "Decode keys first hand ms:    " << (double) decode_keys_first_hand_nano / num_iters / 1000000 << ",\t data sent: " << (double) decode_data_first_hand_sent / num_iters / 1000 << " kB" << std::endl;
-  std::cout << "Decode keys final hand ms:    " << (double) decode_keys_final_hand_nano / num_iters / 1000000 << ",\t data sent: " << (double) decode_data_final_hand_sent / num_iters / 1000 << " kB" << std::endl;
-  std::cout << "Decode keys oponents hand ms: " << (double) decode_keys_oponent_hand_nano / num_iters / 1000000 << ",\t data sent: " << (double) decode_data_oponent_hand_sent / num_iters / 1000 << " kB" << std::endl;
 
   std::cout << "=============================" << std::endl;
+  std::cout
+          << "\t"
+          << "#Decks:\t"
+          << "Setup:\t\t"
+          << "Circuit Preprocess:\t"
+          << "Auth Preprocess:\t"
+          << "Build:\t"
+          << "Eval:\t"
+          << "Decode first:\t"
+          << "Decode final:\t"
+          << "Decode oponent:\t"
+          << std::endl;
 
-  std::cout << "Preprocess ms: "
-            << (double)(preprocess_time_nano + prepare_eval_time_nano) / num_iters / 1000000
-            << ",\t data sent: " << (double)(preprocess_data_sent + prepare_data_sent) / num_iters / 1000 << " kB" << std::endl;
-  std::cout << "Build ms:      " << (double) build_time_nano / num_iters / 1000000 << ",\t data sent: " << (double) build_data_sent / num_iters / 1000 << " kB" << std::endl;
+  std::cout << std::setprecision(2);
+  std::cout << std::fixed;
 
-  std::cout << "Online ms:     " << (double)(eval_circuits_nano + decode_keys_first_hand_nano + decode_keys_final_hand_nano + decode_keys_oponent_hand_nano) / num_iters / 1000000
-            << ",\t data sent: " << (double)(eval_data_sent + decode_data_first_hand_sent + decode_data_final_hand_sent + decode_data_oponent_hand_sent) / num_iters / 1000 << " kB" << std::endl;
+  std::cout
+          << "ms,\t"
+          << num_iters << ",\t"
+          << (double) setup_time_nano / num_iters / 1000000 << ",\t"
+          << (double) preprocess_time_nano / num_iters / 1000000 << ",\t\t"
+          << (double) prepare_eval_time_nano / num_iters / 1000000 << ",\t\t\t"
+          << (double) build_time_nano / num_iters / 1000000 << ",\t"
+          << (double) eval_circuits_nano / num_iters / 1000000 << ",\t"
+          << (double) first_hand_nano / num_iters / 1000000 << ",\t\t"
+          << (double) final_hand_nano / num_iters / 1000000 << ",\t\t"
+          << (double) oponent_hand_nano / num_iters / 1000000
+          << std::endl;
 
-  std::cout << "( " << num_iters
-            << ", " << (double)(preprocess_data_sent + prepare_data_sent) / num_iters / 1000
-            << ", " << (double)build_data_sent / num_iters / 1000
-            << ", " << (double)(eval_data_sent + decode_data_first_hand_sent + decode_data_final_hand_sent + decode_data_oponent_hand_sent) / num_iters / 1000 << ")" << std::endl;
-  std::cout << "( " << num_iters
-            << ", " << (double)(preprocess_data_sent + prepare_data_sent + build_data_sent + eval_data_sent + decode_data_first_hand_sent + decode_data_final_hand_sent + decode_data_oponent_hand_sent) / num_iters / 1000 << ")" << std::endl;
+  std::ofstream ms_file ("const_ms.log", std::ios_base::app);
+  if (ms_file.is_open()){
+    ms_file
+            << num_iters << ", "
+            << (double) setup_time_nano / num_iters / 1000000 << ", "
+            << (double) preprocess_time_nano / num_iters / 1000000 << ", "
+            << (double) prepare_eval_time_nano / num_iters / 1000000 << ", "
+            << (double) build_time_nano / num_iters / 1000000 << ", "
+            << (double) eval_circuits_nano / num_iters / 1000000 << ", "
+            << (double) first_hand_nano / num_iters / 1000000 << ", "
+            << (double) final_hand_nano / num_iters / 1000000 << ", "
+            << (double) oponent_hand_nano / num_iters / 1000000
+            << std::endl;
+  } else {
+    std::cout << "Could not write ms to log file!" << std::endl;
+  }
+  ms_file.close();
+
+  std::cout
+          << "kb,\t"
+          << num_iters << ",\t"
+          << (double) setup_data_sent / num_iters / 1000 << ",\t\t"
+          << (double) preprocess_data_sent / num_iters / 1000 << ",\t\t"
+          << (double) prepare_data_sent / num_iters / 1000 << ",\t\t"
+          << (double) build_data_sent / num_iters / 1000 << ",\t"
+          << (double) eval_data_sent / num_iters / 1000 << ",\t"
+          << (double) first_hand_sent / num_iters / 1000 << ",\t\t"
+          << (double) final_hand_sent / num_iters / 1000 << ",\t\t"
+          << (double) oponent_hand_sent / num_iters / 1000
+          << std::endl;
+
+  std::ofstream kb_file ("const_kb.log", std::ios_base::app);
+  if (kb_file.is_open()){
+    kb_file
+            << num_iters << ", "
+            << (double) setup_data_sent / num_iters / 1000 << ", "
+            << (double) preprocess_data_sent / num_iters / 1000 << ", "
+            << (double) prepare_data_sent / num_iters / 1000 << ", "
+            << (double) build_data_sent / num_iters / 1000 << ", "
+            << (double) eval_data_sent / num_iters / 1000 << ", "
+            << (double) first_hand_sent / num_iters / 1000 << ", "
+            << (double) final_hand_sent / num_iters / 1000 << ", "
+            << (double) oponent_hand_sent / num_iters / 1000
+            << std::endl;
+  }else {
+    std::cout << "Could not write kb to log file!" << std::endl;
+  }
+  kb_file.close();
 
   std::cout << "=============================" << std::endl;
 }
