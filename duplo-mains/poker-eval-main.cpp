@@ -221,7 +221,13 @@ int main(int argc, const char* argv[]) {
     duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
                           output_keys, outputs, true, num_execs_online);
     decode_keys_first_hand_end = GET_TIME();
+    PRINT_TIME(decode_keys_first_hand_end, decode_keys_first_hand_begin, "2:decode key first hand");
 
+    decode_keys_first_hand_begin = GET_TIME();
+    duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
+                          output_keys, outputs, true, num_execs_online);
+    decode_keys_first_hand_end = GET_TIME();
+    PRINT_TIME(decode_keys_first_hand_end, decode_keys_first_hand_begin, "2:decode key first hand");
 
     //Sync with Constructor
     duplo_eval.chan.send(&snd, 1);

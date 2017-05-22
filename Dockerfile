@@ -18,6 +18,9 @@ RUN ./build/release/Frigate circuits/cb/conditional_swap_shuffle100.wir -dp
 RUN ./build/release/Frigate circuits/cb/conditional_swap_shuffle500.wir -dp
 RUN ./cmake-release.sh
 
+RUN ./build/release/TestDUPLO
+RUN ./build/release/TestSplitCommit
+
 # Defining entrypoint to trigger DUPLO Poker Constructor, Evaluator or Client
 COPY entry-point.sh /home/
 RUN chmod 755 /home/entry-point.sh

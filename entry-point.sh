@@ -62,8 +62,6 @@ do
     shift # past argument or value
 done
 
-echo "${TEST}"
-
 if [ "${TEST}" -eq "1" ];
 then
     for i in 1 10 100 500

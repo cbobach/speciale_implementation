@@ -222,13 +222,21 @@ int main(int argc, const char* argv[]) {
     duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
                            true, num_execs_online);
     decode_keys_first_hand_end = GET_TIME();
+    PRINT_TIME(decode_keys_first_hand_end, decode_keys_first_hand_begin, "1:decode key first hand");
 
+
+    decode_keys_first_hand_begin = GET_TIME();
+    duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
+                           true, num_execs_online);
+    decode_keys_first_hand_end = GET_TIME();
+    PRINT_TIME(decode_keys_first_hand_end, decode_keys_first_hand_begin, "2:decode key first hand");
 
     //Sync with Evaluator
     duplo_const.chan.recv(&rcv, 1);
     duplo_const.chan.send(&snd, 1);
 
     first_hand_nano += std::chrono::duration_cast<std::chrono::nanoseconds>(decode_keys_first_hand_end - decode_keys_first_hand_begin).count();
+
 
     /*
      * DISPLAYING FIRST HAND
