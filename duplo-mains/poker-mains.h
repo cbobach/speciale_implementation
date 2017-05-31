@@ -12,6 +12,8 @@ static std::string default_interactive("1");
 static std::string default_execs("1,1,1");
 static std::string default_ip_address("127.0.0.1");
 static std::string default_port_const("28001");
+static std::string default_ram_only("0");
+
 
 void Usage(ezOptionParser& opt) {
   std::string usage;

@@ -75,6 +75,16 @@ int main(int argc, const char* argv[]) {
           "-p_const"
   );
 
+  opt.add(
+          default_ram_only.c_str(), // Default.
+          0, // Required?
+          1, // Number of args expected.
+          0, // Delimiter if expecting multiple args.
+          "Use ram", // Help description.
+          "-d"
+  );
+
+
   //Attempt to parse input
   opt.parse(argc, argv);
 
@@ -94,7 +104,7 @@ int main(int argc, const char* argv[]) {
   //Copy inputs into the right variables
   std::vector<int> num_execs;
   int num_iters, num_execs_components, num_execs_auths, num_execs_online,
-          port_const, ram_only = 0, interactive;
+          port_const, ram_only, interactive;
   std::string circuit_name = "card_shuffle", ip_address_const,
           exec_name, circuit_file;
   std::string prefix("eval_");
@@ -111,6 +121,7 @@ int main(int argc, const char* argv[]) {
 
   opt.get("-n")->getInt(num_iters);
   opt.get("-i")->getInt(interactive);
+  opt.get("-d")->getInt(ram_only);
 
   ComposedCircuit composed_circuit;
 
