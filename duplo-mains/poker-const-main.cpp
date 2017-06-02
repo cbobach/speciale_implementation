@@ -228,19 +228,15 @@ int main(int argc, const char* argv[]) {
     std::vector<std::vector<uint32_t>> eval_output_indices(composed_circuit.output_circuits.size());
     eval_output_indices[l] = GetFirstHandIndices(eval_first_card_index, HAND_SIZE);
 
+    //Sync with Constructor
+    duplo_const.chan.send(&snd, 1);
+    duplo_const.chan.recv(&rcv, 1);
 
     decode_keys_first_hand_begin = GET_TIME();
     duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
                            true, num_execs_online);
     decode_keys_first_hand_end = GET_TIME();
     PRINT_TIME(decode_keys_first_hand_end, decode_keys_first_hand_begin, "1:decode key first hand");
-
-
-    decode_keys_first_hand_begin = GET_TIME();
-    duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
-                           true, num_execs_online);
-    decode_keys_first_hand_end = GET_TIME();
-    PRINT_TIME(decode_keys_first_hand_end, decode_keys_first_hand_begin, "2:decode key first hand");
 
     //Sync with Evaluator
     duplo_const.chan.recv(&rcv, 1);
@@ -317,6 +313,9 @@ int main(int argc, const char* argv[]) {
     eval_output_indices[l] = GetFinalHandIndices(num_cards_eval_changed[0],
                                                  eval_output_indices[0], eval_card_changed,
                                                  eval_first_change_card_index);
+    //Sync with Constructor
+    duplo_const.chan.send(&snd, 1);
+    duplo_const.chan.recv(&rcv, 1);
 
     decode_keys_final_hand_begin = GET_TIME();
     duplo_const.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices, outputs,
@@ -338,6 +337,10 @@ int main(int argc, const char* argv[]) {
 
 
     std::cout << "====== CONSTRUCTOR: EVALUATOR GOT FINAL HAND: ======" << std::endl;
+
+    //Sync with Constructor
+    duplo_const.chan.send(&snd, 1);
+    duplo_const.chan.recv(&rcv, 1);
 
     decode_keys_oponent_hand_begin = GET_TIME();
     duplo_const.DecodeKeys(composed_circuit, eval_output_indices, const_output_indices,

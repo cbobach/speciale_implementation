@@ -227,12 +227,9 @@ int main(int argc, const char* argv[]) {
     std::vector<std::vector<uint32_t>> eval_output_indices(composed_circuit.output_circuits.size());
     eval_output_indices[l] = GetFirstHandIndices(eval_first_card_index, HAND_SIZE);
 
-
-    decode_keys_first_hand_begin = GET_TIME();
-    duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
-                          output_keys, outputs, true, num_execs_online);
-    decode_keys_first_hand_end = GET_TIME();
-    PRINT_TIME(decode_keys_first_hand_end, decode_keys_first_hand_begin, "2:decode key first hand");
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
 
     decode_keys_first_hand_begin = GET_TIME();
     duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
@@ -315,6 +312,10 @@ int main(int argc, const char* argv[]) {
                                                  eval_output_indices[0], eval_card_changed.data(),
                                                  eval_first_change_card_index);
 
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
+
     decode_keys_final_hand_begin = GET_TIME();
     duplo_eval.DecodeKeys(composed_circuit, const_output_indices, eval_output_indices,
                           output_keys, outputs, true, num_execs_online);
@@ -335,6 +336,10 @@ int main(int argc, const char* argv[]) {
 
 
     std::cout << "====== EVALUATOR: CONSTRUCTOR GOT FINAL HAND: ======" << std::endl;
+
+    //Sync with Constructor
+    duplo_eval.chan.send(&snd, 1);
+    duplo_eval.chan.recv(&rcv, 1);
 
     decode_keys_oponent_hand_begin = GET_TIME();
     duplo_eval.DecodeKeys(composed_circuit, eval_output_indices, const_output_indices,
